@@ -92,6 +92,7 @@
 
 require_relative 'property'
 require_relative 'tiles'
+require 'json'
 
 # Immutable representation of the game board.
 class Board
@@ -164,12 +165,34 @@ def _validate_tile(raw_tile, index)
         raise ArgumentError, "Property '#{name}' must have a non-empty colour."
       end
 
-      Property.new(name: name, price: price, colour: colour)
+      Property.new(name, price, colour)
 
     when "go"
-      GoTile.new(name: name)
+      GoTile.new(name)
 
     else
-      Tile.new(name: name)
+      Tile.new(name)
   end
+end
+
+def load_board(board_path)
+  raw_content = JSON.parse(File.read(board_path))
+
+  unless raw_content.is_a?(Array)
+    raise ArgumentError, "Board JSON must be an array of tiles."
+  end
+
+  tiles = raw_content.each_with_index.map do |raw_tile, index|
+    _validate_tile(raw_tile, index)
+  end
+
+  if tiles.empty?
+    raise ArgumentError, "Board must not be empty."
+  end
+
+  unless tiles[0].is_a?(GoTile)
+    raise ArgumentError, "First board tile must be GO."
+  end
+
+  Board.new(tiles)
 end
