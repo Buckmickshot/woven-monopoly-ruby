@@ -238,3 +238,92 @@ def print_ranking(result)
     rank_pos += players.length
   end
 end
+
+# Determines winner or draw information from ranking.
+def compute_winner(result)
+  _, top_players = result.ranking.first
+
+  if top_players.length == 1
+    {
+      winner: top_players.first,
+      is_draw: false,
+      draw_players: [],
+    }
+  else
+    {
+      winner: "draw",
+      is_draw: true,
+      draw_players: top_players,
+      draw_count: top_players.length,
+    }
+  end
+end
+
+# Converts a GameResult into a JSON-serialisable dictionary.
+def result_to_dict(result)
+  winner_info = compute_winner(result)
+
+  # build structured ranking
+  ranking_output = []
+  rank_pos = 1
+
+  result.ranking.each do |cash, players|
+    entry = {
+      rank: ordinal(rank_pos),
+      cash: cash,
+      players: players,
+      is_tie: players.length > 1,
+    }
+    ranking_output << entry
+    rank_pos += players.length
+  end
+
+  {
+    winner: winner_info[:winner],
+    is_draw: winner_info[:is_draw],
+    draw_players: winner_info[:draw_players],
+    draw_count: winner_info[:draw_count] || 0,
+    ranking: ranking_output,
+    cash_by_player: result.cash_by_player,
+    position_by_player: result.position_by_player,
+    turns_played: result.turns_played,
+    turn_log: result.turn_log,
+  }
+end
+
+# Prints a human-readable summary of a game result,
+# including winner/draw, ranking, final money, positions, and optional turn log.
+def print_text_results(roll_path, result)
+  puts "Game: #{roll_path}"
+  puts "Turns played: #{result.turns_played}"
+
+  # winner
+  winner_info = compute_winner(result)
+  if winner_info[:is_draw]
+    names = winner_info[:draw_players].join(", ")
+    puts "Result: #{winner_info[:draw_count]}-way draw between #{names}"
+  else
+    puts "Winner: #{winner_info[:winner]}"
+  end
+
+  print_ranking(result)
+
+  puts "\nFinal money:"
+  result.cash_by_player.each do |player_name, cash|
+    puts "- #{player_name}: $#{cash}"
+  end
+
+  puts "\nFinal positions:"
+  result.position_by_player.each do |player_name, position|
+    puts "- #{player_name}: #{position}"
+  end
+
+  if result.turn_log
+    puts "\nTurn log:"
+    result.turn_log.each do |entry|
+      puts "- #{entry}"
+    end
+  end
+
+  puts
+end
