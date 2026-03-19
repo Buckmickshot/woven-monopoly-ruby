@@ -423,6 +423,11 @@ class TestInputOutput < Minitest::Test
       bad2 = File.join(tmpdir, "bad_board_2.json")
       write_json(bad2, [{"name" => "NotGO", "type" => "property", "price" => 1, "colour" => "C"}])
       assert_raises(ArgumentError) { load_board(bad2) }
+
+      # unsupported tile type
+      bad3 = File.join(tmpdir, "bad_board_3.json")
+      write_json(bad3, [{"name" => "GO", "type" => "go"}, {"name" => "Mystery", "type" => "chance"}])
+      assert_raises(ArgumentError) { load_board(bad3) }
     end
   end
 
@@ -582,7 +587,7 @@ class GameRulesTests < Minitest::Test
     player = game.players[0]
     landed_property = board.tile_at(1)
     assert_equal 7, player.cash
-    assert_same player, landed_property.owner
+    assert_equal player, landed_property.owner
     assert_equal "A", result.position_by_player["P1"]
   end
 
@@ -722,5 +727,34 @@ class IntegrationTests < Minitest::Test
     ], result.ranking)
 
     assert_equal({"P1" => "B", "P2" => "GO", "P3" => "B"}, result.position_by_player)
+  end
+
+  # Running multiple roll files in one execution should not leak board ownership across games.
+  def test_multiple_games_do_not_share_board_state
+    board_path = File.join(__dir__, "..", "data", "board.json")
+    roll_1_path = File.join(__dir__, "..", "data", "rolls_1.json")
+    roll_2_path = File.join(__dir__, "..", "data", "rolls_2.json")
+
+    config = GameConfig.new(
+      player_names: ["Peter", "Billy", "Charlotte", "Sweedal"],
+      starting_money: 16,
+      pass_go_reward: 1
+    )
+
+    standalone_result_2 = Game.new(load_board(board_path), config).play(load_rolls(roll_2_path))
+
+    combined_results = simulate_games(
+      board_path: board_path,
+      roll_paths: [roll_1_path, roll_2_path],
+      config: config,
+      include_turn_log: false
+    )
+
+    combined_result_2 = combined_results[roll_2_path]
+
+    assert_equal standalone_result_2.cash_by_player, combined_result_2.cash_by_player
+    assert_equal standalone_result_2.position_by_player, combined_result_2.position_by_player
+    assert_equal standalone_result_2.ranking, combined_result_2.ranking
+    assert_equal standalone_result_2.turns_played, combined_result_2.turns_played
   end
 end
