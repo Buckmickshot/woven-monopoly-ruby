@@ -73,7 +73,7 @@ def _validate_tile(raw_tile, index)
         raise ArgumentError, "Property '#{name}' must have a non-empty colour."
       end
 
-      Property.new(name, price, colour)
+      Property.new(name: name, price: price, colour: colour)
 
     when "go"
       GoTile.new(name)
@@ -83,6 +83,7 @@ def _validate_tile(raw_tile, index)
   end
 end
 
+# Loads and validates a board configuration from JSON.
 def load_board(board_path)
   raw_content = JSON.parse(File.read(board_path))
 
