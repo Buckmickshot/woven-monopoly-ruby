@@ -90,6 +90,9 @@
 
 #     return Board(tiles=tiles)
 
+require_relative 'property'
+require_relative 'tiles'
+
 # Immutable representation of the game board.
 class Board
   attr_reader :tiles
@@ -131,4 +134,42 @@ def _require_tile_field(raw_tile, field_name, index)
     raise ArgumentError, "Tile at index #{index} is missing required field '#{field_name}'."
   end
   raw_tile[field_name]
+end
+
+# Validates and converts a raw JSON tile into a Tile object.
+def _validate_tile(raw_tile, index)
+  unless raw_tile.is_a?(Hash)
+    raise ArgumentError, "Tile at index #{index} must be an object."
+  end
+
+  name = _require_tile_field(raw_tile, "name", index)
+  tile_type = _require_tile_field(raw_tile, "type", index)
+
+  if !name.is_a?(String) || name.strip.empty?
+    raise ArgumentError, "Tile at index #{index} has invalid 'name'."
+  end
+  if !tile_type.is_a?(String) || tile_type.strip.empty?
+    raise ArgumentError, "Tile at index #{index} has invalid 'type'."
+  end
+
+  case tile_type
+    when "property"
+      price = _require_tile_field(raw_tile, "price", index)
+      colour = _require_tile_field(raw_tile, "colour", index)
+
+      if !price.is_a?(Integer) || price <= 0
+        raise ArgumentError, "Property '#{name}' must have a positive integer price."
+      end
+      if !colour.is_a?(String) || colour.strip.empty?
+        raise ArgumentError, "Property '#{name}' must have a non-empty colour."
+      end
+
+      Property.new(name: name, price: price, colour: colour)
+
+    when "go"
+      GoTile.new(name: name)
+
+    else
+      Tile.new(name: name)
+  end
 end
