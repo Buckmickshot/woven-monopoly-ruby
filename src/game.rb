@@ -236,10 +236,8 @@ class Game
       raise ArgumentError, "Rolls must not be empty."
     end
 
-    rolls.each do |roll|
-      if !roll.is_a?(Integer) || roll <= 0
-        raise ArgumentError, "Rolls must be positive integers."
-      end
+    unless rolls.all? { |roll| roll.is_a?(Integer) && roll > 0 }
+      raise ArgumentError, "Rolls must be positive integers."
     end
 
     turn_index = 0
@@ -277,7 +275,7 @@ class Game
       end
 
       if include_turn_log
-        turn_log << "#{INDENT}#{current_player.name} now has $#{current_player.cash} and owns #{owned_tiles.join(', ') || 'nothing'}"
+        turn_log << "#{INDENT}#{current_player.name} now has $#{current_player.cash} and owns #{owned_tiles.empty? ? 'nothing' : owned_tiles.join(', ')}"
       end
 
       if config.stop_on_bankruptcy && players.any?(&:bankrupt?)
@@ -313,4 +311,14 @@ class Game
       turns_played: turns_played,
       turn_log: include_turn_log ? turn_log : nil
     )
+  end
+
+  # Checks whether a player owns all properties of a given colour.
+  def owns_full_colour_set(owner, colour)
+    colour_indexes = property_indexes_by_colour[colour] || []
+    return false if colour_indexes.empty?
+
+    colour_indexes.all? do |index|
+      owner.owned_property_indexes.include?(index)
+    end
   end
