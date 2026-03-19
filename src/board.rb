@@ -79,7 +79,7 @@ def _validate_tile(raw_tile, index)
       GoTile.new(name)
 
     else
-      Tile.new(name)
+      raise ArgumentError, "Tile '#{name}' has unsupported type '#{tile_type}'."
   end
 end
 
