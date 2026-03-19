@@ -1,20 +1,23 @@
+# Base class for all board tiles.
 class Tile
-    INDENT = "       "
+  INDENT = "       "
 
-    attr_reader :name
+  attr_reader :name
 
-    def initialize(name)
-        @name = name
-    end
+  def initialize(name)
+    @name = name
+  end
 
-    def land(player, game)
-        raise NotImplementedError, "Subclasses must implement land"
-    end
+  # Called when a player lands on this tile.
+  def land(player, game)
+    raise NotImplementedError, "Subclasses must implement #land"
+  end
 end
 
+# Represents the GO tile.
 class GoTile < Tile
 
-    def land(player, game)
-        "#{Tile::INDENT}#{player.name} landed on GO."
-    end
+  def land(player, game)
+    "#{INDENT}#{player.name} landed on GO."
+  end
 end
