@@ -454,3 +454,225 @@ class TestInputOutput < Minitest::Test
     assert out.key?(:turns_played)
   end
 end
+
+class GameRulesTests < Minitest::Test
+  # Players must take turns in the exact input order.
+  def test_players_move_in_correct_order
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown"), Property.new(name: "B", price: 1, colour: "Brown")])
+
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2", "P3"], starting_money: 10)
+    )
+
+    # Each roll is unique → reveals order
+    game.play([1, 2, 3])
+
+    assert_equal 1, game.players[0].position # P1 got roll 1
+    assert_equal 2, game.players[1].position # P2 got roll 2
+    assert_equal 0, game.players[2].position # P3 got roll 3
+  end
+
+  # Turn order should wrap around to the first player.
+  def test_turn_order_wraps_correctly
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2"], starting_money: 10)
+    )
+
+    game.play([1, 1, 1]) # P1, P2, P1 again
+
+    assert_equal 0, game.players[0].position # P1 moved twice (1 → 0)
+    assert_equal 1, game.players[1].position # P2 moved once
+  end
+
+  # Players should start with $16 by default.
+  def test_default_starting_money_is_16
+    board = Board.new([GoTile.new("GO")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2"])
+    )
+
+    game.players.each do |player|
+      assert_equal 16, player.cash
+    end
+  end
+
+  # All players should start at position 0 (GO).
+  def test_players_start_on_go_tile
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2"])
+    )
+
+    game.players.each do |player|
+      assert_equal 0, player.position
+    end
+
+    # Also check GO tile explicitly
+    assert_equal "GO", board.tile_at(0).name
+  end
+
+  # Landing on GO should award the default amount which is 1, but only once.
+  def test_landing_on_go_awards_default_amount_1
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10)
+    )
+
+    # Turn 1: buy A for 1. Turn 2: land on GO (+1).
+    game.play([1, 1])
+
+    assert_equal 10, game.players[0].cash
+  end
+
+  # Landing on GO should award the configured amount, but only once.
+  def test_landing_on_go_awards_configured_amount
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10, pass_go_reward: 2)
+    )
+
+    # Turn 1: buy A for 1. Turn 2: land on GO (+2).
+    game.play([1, 1])
+
+    assert_equal 11, game.players[0].cash
+  end
+
+  # Passing GO should award the configured amount, but only once.
+  def test_passing_go_awards_configured_amount
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10, pass_go_reward: 2)
+    )
+
+    # Turn 1: buy A for 1. Turn 2: pass GO (+2), land on A (owned by self).
+    game.play([1, 2])
+
+    assert_equal 11, game.players[0].cash
+  end
+
+  # Player should not pay rent when landing on their own property.
+  def test_no_rent_on_own_property
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 2, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10)
+    )
+
+    game.play([1, 2]) # buy, pass Go, then land again
+
+    assert_equal 9, game.players[0].cash # only paid once
+    assert_equal 1, game.players[0].position # landed on A
+  end
+
+  # Player must buy an unowned property when they land on it.
+  def test_must_buy_when_landing_on_unowned_property
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 3, colour: "Brown")])
+    game = Game.new(board, GameConfig.new(player_names: ["P1"], starting_money: 10))
+
+    result = game.play([1])
+
+    player = game.players[0]
+    landed_property = board.tile_at(1)
+    assert_equal 7, player.cash
+    assert_same player, landed_property.owner
+    assert_equal "A", result.position_by_player["P1"]
+  end
+
+  # Player must pay rent when landing on a property they don't own and owner doesn't own all properties of the same colour.
+  def test_must_pay_rent_when_landing_on_owned_property
+    board = Board.new([
+      GoTile.new("GO"),
+      Property.new(name: "B1", price: 1, colour: "Brown"),
+      Property.new(name: "B2", price: 1, colour: "Brown"),
+    ])
+    game = Game.new(board, GameConfig.new(player_names: ["P1", "P2"], starting_money: 10))
+
+    # P1 buys B1 for 1, P2 pays 1 rent on B1.
+    game.play([1, 1])
+
+    assert_equal 10, game.players[0].cash
+    assert_equal 9, game.players[1].cash
+  end
+
+  # Player must pay double the rent when landing on a property they don't own and the owner owns all properties of the same colour.
+  def test_monopoly_doubles_rent
+    board = Board.new([
+      GoTile.new("GO"),
+      Property.new(name: "B1", price: 1, colour: "Brown"),
+      Property.new(name: "B2", price: 1, colour: "Brown"),
+    ])
+    game = Game.new(board, GameConfig.new(player_names: ["P1", "P2"], starting_money: 10))
+
+    # P1 buys B1 for 1, P2 pays 1 rent on B1, P1 buys B2 for 1, P2 pays doubled rent (2) on B2.
+    game.play([1, 1, 1, 1])
+
+    assert_equal 11, game.players[0].cash
+    assert_equal 7, game.players[1].cash
+  end
+
+  # Game stops on first player bankruptcy.
+  def test_game_stops_on_first_bankruptcy
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 2, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2"], starting_money: 1, pass_go_reward: 0)
+    )
+
+    # P1 buys A for 2, P1 goes bankrupt (-1).
+    result = game.play([1, 1, 1, 1])
+
+    assert_equal 1, result.turns_played
+    assert_equal(-1, result.cash_by_player["P1"])
+  end
+
+  # Last tile wraps around to the first tile.
+  def test_board_wraps_around
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 2, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10, pass_go_reward: 0)
+    )
+
+    # P1 buys A for 2, P1 wraps around to starting tile (GO).
+    _ = game.play([1, 1])
+
+    assert_equal 0, game.players[0].position
+  end
+
+  # Passing GO multiple times in one move should award each time it is passed.
+  def test_multiple_go_passes
+    board = Board.new([GoTile.new("GO"), Property.new(name: "A", price: 1, colour: "Brown")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1"], starting_money: 10, pass_go_reward: 2)
+    )
+
+    hi = game.play([5], true) # board size = 2 → wraps multiple times
+
+    # Should get +2 for each time GO is passed
+    assert_equal 13, game.players[0].cash
+  end
+
+  # Players with equal cash should be sorted alphabetically within ranking.
+  def test_ranking_tie_sorted_alphabetically
+    board = Board.new([GoTile.new("GO")])
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["B", "A"], starting_money: 10)
+    )
+
+    # P1 and P2 loop back to starting tile (GO).
+    result = game.play([1, 1])
+
+    # Same cash → names sorted
+    assert_equal ["A", "B"], result.ranking[0][1]
+  end
+end
