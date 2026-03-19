@@ -192,11 +192,27 @@ def parse_args
   options
 end
 
+# Runs one deterministic simulation per rolls file.
+# A fresh board is loaded for each game to avoid cross-game state leakage.
+def simulate_games(board_path:, roll_paths:, config:, include_turn_log: false)
+  all_results = {}
+
+  roll_paths.each do |roll_path|
+    board = load_board(board_path)
+    game = Game.new(board, config)
+    rolls = load_rolls(roll_path)
+
+    result = game.play(rolls, include_turn_log)
+    all_results[roll_path] = result
+  end
+
+  all_results
+end
+
 # Entry point for running simulations.
 def main
   args = parse_args
   players = args[:players]
-  board = load_board(args[:board])
 
   config = GameConfig.new(
     player_names: players,
@@ -204,14 +220,14 @@ def main
     pass_go_reward: args[:pass_go],
   )
 
-  all_results = {}
-  args[:rolls].each do |roll_path|
-    game = Game.new(board, config)
-    rolls = load_rolls(roll_path)
+  all_results = simulate_games(
+    board_path: args[:board],
+    roll_paths: args[:rolls],
+    config: config,
+    include_turn_log: args[:print_turn_log]
+  )
 
-    result = game.play(rolls, args[:print_turn_log])
-    all_results[roll_path] = result
-
+  all_results.each do |roll_path, result|
     if args[:format] == "text"
       print_text_results(roll_path, result)
     end
