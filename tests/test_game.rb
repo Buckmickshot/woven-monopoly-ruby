@@ -676,3 +676,51 @@ class GameRulesTests < Minitest::Test
     assert_equal ["A", "B"], result.ranking[0][1]
   end
 end
+
+class IntegrationTests < Minitest::Test
+  # Simple game where players end with non-distinct cash values.
+  def test_simple_game_with_non_distinct_ranking
+    board = load_board(File.join(__dir__, "board_test_1.json"))
+    rolls = load_rolls(File.join(__dir__, "rolls_test_1.json"))
+
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2", "P3", "P4"], starting_money: 10, pass_go_reward: 0)
+    )
+
+    result = game.play(rolls)
+
+    assert_equal({"P1" => 8, "P2" => 6, "P3" => 12, "P4" => 8}, result.cash_by_player)
+
+    assert_equal([
+      [12, ["P3"]],
+      [8, ["P1", "P4"]],
+      [6, ["P2"]]
+    ], result.ranking)
+
+    assert_equal({"P1" => "B", "P2" => "B", "P3" => "B", "P4" => "C"}, result.position_by_player)
+  end
+
+  # Game where players own all properties of same colour.
+  def test_simple_game_with_double_rent
+    board = load_board(File.join(__dir__, "board_test_2.json"))
+    rolls = load_rolls(File.join(__dir__, "rolls_test_2.json"))
+
+    game = Game.new(
+      board,
+      GameConfig.new(player_names: ["P1", "P2", "P3"], starting_money: 10, pass_go_reward: 0)
+    )
+
+    result = game.play(rolls)
+
+    assert_equal({"P1" => 8, "P2" => 16, "P3" => 2}, result.cash_by_player)
+
+    assert_equal([
+      [16, ["P2"]],
+      [8, ["P1"]],
+      [2, ["P3"]]
+    ], result.ranking)
+
+    assert_equal({"P1" => "B", "P2" => "GO", "P3" => "B"}, result.position_by_player)
+  end
+end
