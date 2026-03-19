@@ -2,7 +2,7 @@
 class Property < Tile
   attr_accessor :price, :colour, :owner
 
-  def initialize(name, price, colour, owner = nil)
+  def initialize(name:, price:, colour:, owner: nil)
     super(name)
     @price = price
     @colour = colour
