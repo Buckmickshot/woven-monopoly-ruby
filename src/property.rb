@@ -1,3 +1,5 @@
+require_relative 'tiles'
+
 # Represents a purchasable board property.
 class Property < Tile
   attr_accessor :price, :colour, :owner

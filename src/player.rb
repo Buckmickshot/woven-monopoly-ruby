@@ -34,3 +34,4 @@ class Player
   def bankrupt?
     return cash < 0
   end
+end

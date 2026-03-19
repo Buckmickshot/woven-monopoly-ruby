@@ -145,3 +145,4 @@ class Game
       owner.owned_property_indexes.include?(index)
     end
   end
+end
